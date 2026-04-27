@@ -1,0 +1,73 @@
+Metadata-Version: 2.4
+Name: dvcom
+Version: 1.0.0
+Summary: Compress PDFs and images from your terminal. No cloud. No uploads. 100% local.
+License: MIT
+Project-URL: Homepage, https://github.com/yourusername/dvcom
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+
+# dvcom
+
+```
+compress files from your terminal. no cloud. no uploads. your machine only.
+```
+
+## Install
+
+```bash
+pip install dvcom
+```
+
+That's it.
+
+> Also needs Ghostscript + ImageMagick:
+> ```bash
+> # mac
+> brew install ghostscript imagemagick
+>
+> # linux
+> sudo apt install ghostscript imagemagick
+>
+> # windows
+> # download installers from ghostscript.com and imagemagick.org
+> ```
+
+---
+
+## Usage
+
+```bash
+dvcom file.pdf                    # compress to -40% (default)
+dvcom file.pdf 2MB                # compress to target 2 MB
+dvcom photo.jpg 500KB             # compress image to 500 KB
+dvcom *.pdf 1MB                   # batch compress all PDFs
+dvcom file.pdf 2MB -o ~/Desktop   # save to Desktop
+dvcom photo.jpg 300KB -o out/small.jpg   # custom output filename
+dvcom file.pdf -v                 # verbose: show compression steps
+```
+
+---
+
+## Why
+
+- **Slow internet?** Compress before you send. Entirely offline.
+- **Private files?** Nothing leaves your machine. Ever.
+- **Nerdy?** It uses Ghostscript's 3-strategy cascade + binary search to hit your target size.
+
+---
+
+## How it works
+
+For PDFs, tries 3 strategies in order:
+1. Font/stream optimisation (lossless)
+2. qpdf repack (if installed)
+3. DPI binary search (hits target size)
+
+For images, binary searches the best quality level that fits your target.
+
+---
+
+## License
+
+MIT

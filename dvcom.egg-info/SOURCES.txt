@@ -1,0 +1,9 @@
+pyproject.toml
+dvcom/__init__.py
+dvcom/cli.py
+dvcom/core.py
+dvcom.egg-info/PKG-INFO
+dvcom.egg-info/SOURCES.txt
+dvcom.egg-info/dependency_links.txt
+dvcom.egg-info/entry_points.txt
+dvcom.egg-info/top_level.txt

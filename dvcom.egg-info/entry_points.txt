@@ -1,0 +1,2 @@
+[console_scripts]
+dvcom = dvcom.cli:main

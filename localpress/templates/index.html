@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocalPress</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg:       #0a0a0a;
+    --s1:       #111111;
+    --s2:       #1a1a1a;
+    --s3:       #242424;
+    --accent:   #00ff88;
+    --accent2:  #00cc6a;
+    --text:     #e2e2e2;
+    --dim:      #555;
+    --border:   #222;
+    --danger:   #ff4455;
+    --warn:     #ffaa00;
+    --ok:       #00ff88;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── Header ── */
+  header {
+    width: 100%;
+    max-width: 860px;
+    padding: 36px 0 20px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -1px;
+  }
+  header span {
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  main { width: 100%; max-width: 860px; padding-bottom: 60px; }
+
+  /* ── Dependency warning ── */
+  .dep-warn {
+    background: #1a0a00;
+    border: 1px solid var(--warn);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    font-size: 12px;
+    color: var(--warn);
+  }
+  .dep-warn code {
+    background: #2a1500;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  /* ── Drop zone ── */
+  #dropzone {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: var(--s1);
+    padding: 48px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  #dropzone:hover, #dropzone.drag { border-color: var(--accent); background: #0a1a12; }
+  #dropzone .icon { font-size: 32px; margin-bottom: 10px; }
+  #dropzone p { font-size: 13px; color: var(--dim); }
+  #dropzone p strong { color: var(--accent); }
+  #dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  /* ── File table ── */
+  #file-section { display: none; margin-bottom: 24px; }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .section-title { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+  .btn-link {
+    background: none; border: none; color: var(--warn);
+    font-family: inherit; font-size: 11px; cursor: pointer;
+    text-decoration: underline;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th {
+    text-align: left; padding: 8px 10px;
+    color: var(--dim); font-weight: 400; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid #161616; }
+  tbody tr:hover { background: var(--s2); }
+  tbody td { padding: 10px 10px; vertical-align: middle; }
+  td.fname { color: var(--text); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.fsize { color: var(--warn); width: 90px; }
+  td.ftarget { width: 200px; }
+  td.fdefault { color: var(--dim); font-size: 11px; width: 140px; }
+  td.fremove { width: 40px; text-align: center; }
+
+  .target-input {
+    background: var(--s3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 5px 8px;
+    width: 140px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .target-input:focus { border-color: var(--accent); }
+  .target-input.invalid { border-color: var(--danger); color: var(--danger); }
+
+  .remove-btn {
+    background: none; border: none;
+    color: var(--dim); cursor: pointer;
+    font-size: 14px; padding: 2px 6px;
+    border-radius: 3px; transition: color .15s;
+  }
+  .remove-btn:hover { color: var(--danger); }
+
+  /* ── Output dir ── */
+  .outdir-row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--dim);
+    margin-bottom: 24px;
+  }
+  .outdir-row span { color: var(--accent); }
+  #outdir-input {
+    flex: 1;
+    background: var(--s2); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text);
+    font-family: inherit; font-size: 12px;
+    padding: 6px 10px; outline: none;
+  }
+  #outdir-input:focus { border-color: var(--accent); }
+
+  /* ── Compress button ── */
+  #compress-btn {
+    display: block;
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 16px;
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+    margin-bottom: 24px;
+  }
+  #compress-btn:hover:not(:disabled) { background: var(--accent2); }
+  #compress-btn:active:not(:disabled) { transform: scale(0.99); }
+  #compress-btn:disabled { background: var(--s3); color: var(--dim); cursor: not-allowed; }
+
+  /* ── Progress ── */
+  #progress-section { display: none; margin-bottom: 20px; }
+  .progress-bar-bg {
+    background: var(--s3);
+    border-radius: 4px;
+    height: 6px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+    width: 0%;
+    transition: width .3s;
+  }
+
+  /* ── Log ── */
+  #log {
+    background: var(--s1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+    font-size: 11px;
+    max-height: 220px;
+    overflow-y: auto;
+    line-height: 1.8;
+  }
+  .log-info    { color: var(--dim); }
+  .log-ok      { color: var(--ok); }
+  .log-err     { color: var(--danger); }
+  .log-warning { color: var(--warn); }
+
+  /* ── Output files ── */
+  #output-section { display: none; margin-top: 24px; }
+  .output-card {
+    background: var(--s1);
+    border: 1px solid #1a2e22;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .output-card .oname { color: var(--text); font-size: 12px; flex: 1; }
+  .output-card .ostats { font-size: 11px; color: var(--dim); }
+  .output-card .ostats strong { color: var(--accent); }
+  .dl-btn {
+    background: var(--s3);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background .15s;
+    white-space: nowrap;
+  }
+  .dl-btn:hover { background: #1a2e22; }
+
+  /* ── Add more ── */
+  #add-more {
+    margin-top: 16px;
+    text-align: center;
+  }
+  #add-more button {
+    background: none; border: 1px solid var(--border);
+    color: var(--dim); font-family: inherit; font-size: 12px;
+    padding: 8px 20px; border-radius: 4px; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  #add-more button:hover { border-color: var(--accent); color: var(--accent); }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--s3); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LocalPress</h1>
+  <span>no uploads &middot; no servers &middot; 100% local</span>
+</header>
+
+<main>
+
+  {% if missing %}
+  <div class="dep-warn">
+    ⚠ Missing tools: <strong>{{ missing | join(', ') }}</strong><br><br>
+    Install with: <code>sudo apt install {{ missing | join(' ') }}</code>
+  </div>
+  {% endif %}
+
+  <!-- Drop zone -->
+  <div id="dropzone">
+    <div class="icon">⬇</div>
+    <p>Drop <strong>PDF or image files</strong> here</p>
+    <p style="margin-top:6px">or click to browse</p>
+    <input type="file" id="file-input" multiple
+           accept=".pdf,.jpg,.jpeg,.png,.webp,.bmp,.tiff">
+  </div>
+
+  <!-- File table -->
+  <div id="file-section">
+    <div class="section-header">
+      <span class="section-title">Files &amp; Targets</span>
+      <button class="btn-link" onclick="clearAll()">clear all</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Current size</th>
+          <th>Target (blank = −40%)</th>
+          <th>Will become</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="file-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Output dir -->
+  <div class="outdir-row" id="outdir-row" style="display:none">
+    <span>Save to</span>
+    <input type="text" id="outdir-input"
+           placeholder="Leave blank = save next to original file">
+  </div>
+
+  <!-- Compress button -->
+  <button id="compress-btn" onclick="startCompress()" style="display:none">
+    COMPRESS
+  </button>
+
+  <!-- Progress + log -->
+  <div id="progress-section">
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+    <div id="log"></div>
+  </div>
+
+  <!-- Outputs -->
+  <div id="output-section">
+    <div class="section-header" style="margin-top:8px">
+      <span class="section-title">Compressed Files</span>
+    </div>
+    <div id="output-cards"></div>
+    <div id="add-more">
+      <button onclick="resetForMore()">+ compress more files</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let files = [];   // {id, name, size, size_human, path}
+let jobId = null;
+let pollTimer = null;
+
+// ── Drop zone ──────────────────────────────────────────────────────────────
+const dz = document.getElementById('dropzone');
+const fi = document.getElementById('file-input');
+
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  uploadFiles(e.dataTransfer.files);
+});
+fi.addEventListener('change', () => uploadFiles(fi.files));
+
+async function uploadFiles(fileList) {
+  const form = new FormData();
+  for (const f of fileList) form.append('files', f);
+  const res  = await fetch('/upload', { method: 'POST', body: form });
+  const data = await res.json();
+  for (const f of data) {
+    if (!files.find(x => x.name === f.name && x.size === f.size))
+      files.push(f);
+  }
+  renderTable();
+  document.getElementById('file-section').style.display = 'block';
+  document.getElementById('outdir-row').style.display   = 'flex';
+  document.getElementById('compress-btn').style.display = 'block';
+  dz.style.display = 'none';
+}
+
+// ── Table ──────────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('file-tbody');
+  tbody.innerHTML = '';
+  for (const f of files) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="fname" title="${f.name}">${f.name}</td>
+      <td class="fsize">${f.size_human}</td>
+      <td class="ftarget">
+        <input class="target-input" id="ti_${f.id}"
+               placeholder="e.g. 2MB, 500KB"
+               oninput="updateDefault('${f.id}', ${f.size})">
+      </td>
+      <td class="fdefault" id="td_${f.id}">${defaultLabel(f.size)}</td>
+      <td class="fremove">
+        <button class="remove-btn" onclick="removeFile('${f.id}')">✕</button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function defaultLabel(origBytes) {
+  const d = Math.round(origBytes * 0.6);
+  return `→ ${humanSize(d)} (−40%)`;
+}
+
+function updateDefault(id, origBytes) {
+  const inp = document.getElementById(`ti_${id}`);
+  const lbl = document.getElementById(`td_${id}`);
+  const val = inp.value.trim();
+  if (!val) {
+    inp.classList.remove('invalid');
+    lbl.textContent = defaultLabel(origBytes);
+    lbl.style.color = '';
+    return;
+  }
+  const tb = parseTarget(val, origBytes);
+  if (tb === null) {
+    inp.classList.add('invalid');
+    lbl.textContent = 'invalid';
+    lbl.style.color = 'var(--danger)';
+  } else {
+    inp.classList.remove('invalid');
+    const pct = ((1 - tb / origBytes) * 100).toFixed(0);
+    lbl.textContent = `→ ${humanSize(tb)} (${pct > 0 ? '-' : '+'}${Math.abs(pct)}%)`;
+    lbl.style.color = tb < origBytes ? 'var(--accent)' : 'var(--danger)';
+  }
+}
+
+function removeFile(id) {
+  files = files.filter(f => f.id !== id);
+  if (files.length === 0) { clearAll(); return; }
+  renderTable();
+}
+
+function clearAll() {
+  files = [];
+  document.getElementById('file-section').style.display  = 'none';
+  document.getElementById('outdir-row').style.display     = 'none';
+  document.getElementById('compress-btn').style.display   = 'none';
+  document.getElementById('progress-section').style.display = 'none';
+  document.getElementById('output-section').style.display  = 'none';
+  dz.style.display = '';
+  fi.value = '';
+}
+
+// ── Compress ───────────────────────────────────────────────────────────────
+async function startCompress() {
+  const btn = document.getElementById('compress-btn');
+  btn.disabled = true;
+  btn.textContent = 'WORKING...';
+
+  document.getElementById('progress-section').style.display = 'block';
+  document.getElementById('output-section').style.display   = 'none';
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('progress-fill').style.width = '0%';
+
+  const payload = {
+    output_dir: document.getElementById('outdir-input').value.trim() || null,
+    files: files.map(f => ({
+      id:     f.id,
+      name:   f.name,
+      path:   f.path,
+      target: (document.getElementById(`ti_${f.id}`) || {}).value || ''
+    }))
+  };
+
+  const res  = await fetch('/compress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (data.error) { alert(data.error); btn.disabled = false; btn.textContent = 'COMPRESS'; return; }
+  jobId = data.job_id;
+  pollTimer = setInterval(pollJob, 600);
+}
+
+async function pollJob() {
+  const res  = await fetch(`/job/${jobId}`);
+  const job  = await res.json();
+
+  document.getElementById('progress-fill').style.width = job.progress + '%';
+
+  const logEl = document.getElementById('log');
+  logEl.innerHTML = job.logs.map(l =>
+    `<div class="log-${l.level}">${escHtml(l.msg)}</div>`
+  ).join('');
+  logEl.scrollTop = logEl.scrollHeight;
+
+  if (job.status === 'done') {
+    clearInterval(pollTimer);
+    renderOutputs(job.outputs);
+    const btn = document.getElementById('compress-btn');
+    btn.disabled    = false;
+    btn.textContent = 'COMPRESS';
+  }
+}
+
+function renderOutputs(outputs) {
+  const sec   = document.getElementById('output-section');
+  const cards = document.getElementById('output-cards');
+  cards.innerHTML = '';
+  for (const o of outputs) {
+    const card = document.createElement('div');
+    card.className = 'output-card';
+    card.innerHTML = `
+      <div class="oname">${o.name}</div>
+      <div class="ostats">${o.orig} → <strong>${o.final}</strong> (saved ${o.saved})</div>
+      <a class="dl-btn" href="/download/${encodeURIComponent(o.path)}" download>
+        ↓ download
+      </a>`;
+    cards.appendChild(card);
+  }
+  sec.style.display = 'block';
+}
+
+function resetForMore() {
+  clearAll();
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function humanSize(b) {
+  if (b < 1024)       return b + ' B';
+  if (b < 1048576)    return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
+}
+
+function parseTarget(text, origBytes) {
+  const t = text.trim().toLowerCase();
+  if (!t) return Math.round(origBytes * 0.6);
+  try {
+    if (t.includes('kb')) return Math.round(parseFloat(t) * 1024);
+    return Math.round(parseFloat(t.replace('mb','')) * 1048576);
+  } catch { return null; }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

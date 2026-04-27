@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dvcom"
+version = "1.0.0"
+description = "Compress PDFs and images from your terminal. No cloud. No uploads. 100% local."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+dependencies = []
+
+[project.scripts]
+dvcom = "dvcom.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/dvcom"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dvcom*"]
