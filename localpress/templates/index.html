@@ -797,6 +797,7 @@
 </header>
 
 <main>
+  <div id="backend-status" style="display: none;" data-has-backend="{% if has_backend %}true{% endif %}"></div>
 
   <!-- Mode Selector -->
   <div class="mode-container">
@@ -927,8 +928,26 @@ if (depsDiv) {
     }
   }
 }
-if (serverMissing.length > 0) {
-  document.getElementById('server-dep-warning').style.display = 'block';
+
+// Check if a Python server backend is active
+const backendDiv = document.getElementById('backend-status');
+const hasBackend = backendDiv && backendDiv.getAttribute('data-has-backend') === 'true';
+
+if (hasBackend) {
+  if (serverMissing.length > 0) {
+    document.getElementById('server-dep-warning').style.display = 'block';
+  }
+} else {
+  // If served statically, force Privacy Mode and hide the mode switch entirely
+  isPrivacyMode = true;
+  const modeContainer = document.querySelector('.mode-container');
+  if (modeContainer) {
+    modeContainer.style.display = 'none';
+  }
+  const serverWarning = document.getElementById('server-dep-warning');
+  if (serverWarning) {
+    serverWarning.style.display = 'none';
+  }
 }
 
 function togglePrivacyMode() {

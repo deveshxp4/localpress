@@ -126,7 +126,7 @@ def run_job(job_id, files_info, output_dir):
 @app.route("/")
 def index():
     missing = check_deps()
-    return render_template("index.html", missing=missing)
+    return render_template("index.html", missing=missing, has_backend=True)
 
 @app.route("/upload", methods=["POST"])
 def upload():
