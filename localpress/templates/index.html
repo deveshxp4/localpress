@@ -814,6 +814,8 @@
     </label>
   </div>
 
+  <div id="missing-deps-data" style="display: none;" data-deps='[{% if missing %}"{{ missing | join('", "') }}"{% endif %}]'></div>
+
   <div class="dep-warn" id="server-dep-warning" style="display:none">
     {% if missing %}
     ⚠ <strong>Server missing tools:</strong> {{ missing | join(', ') }}<br>
@@ -907,13 +909,24 @@ let pollTimer = null;
 let isPrivacyMode = true;
 
 // Configure PDFJS worker
-const pdfjsLib = window['pdfjs-dist/build/pdf'];
+const pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
 if (pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 }
 
 // Check server status & dependencies
-const serverMissing = [{% if missing %}"{{ missing | join('", "') }}"{% endif %}];
+let serverMissing = [];
+const depsDiv = document.getElementById('missing-deps-data');
+if (depsDiv) {
+  const rawDeps = depsDiv.getAttribute('data-deps');
+  if (rawDeps && !rawDeps.includes('{%')) {
+    try {
+      serverMissing = JSON.parse(rawDeps);
+    } catch (e) {
+      console.error('Failed to parse missing deps:', e);
+    }
+  }
+}
 if (serverMissing.length > 0) {
   document.getElementById('server-dep-warning').style.display = 'block';
 }
