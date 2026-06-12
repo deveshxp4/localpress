@@ -160,19 +160,6 @@ examples:
     print(BANNER)
     print()
 
-    # ── Check deps ────────────────────────────────────────────────────────────
-    missing = check_deps()
-    if missing:
-        print(red("  missing dependencies:"))
-        for m in missing:
-            print(red(f"    · {m}"))
-        print()
-        print("  install them:")
-        print(dim("    mac:    brew install " + " ".join(missing)))
-        print(dim("    linux:  sudo apt install " + " ".join(missing)))
-        print()
-        sys.exit(1)
-
     # ── Expand globs (Windows doesn't auto-expand) ────────────────────────────
     raw_files = []
     for pattern in args.files:
@@ -188,18 +175,45 @@ examples:
     # ── Validate files ────────────────────────────────────────────────────────
     SUPPORTED = {".pdf", ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
     files = []
+    has_pdf = False
+    has_img = False
+
     for f in raw_files:
         p = Path(f)
         if not p.exists():
             print(red(f"  not found: {f}"))
             continue
-        if p.suffix.lower() not in SUPPORTED:
+        ext = p.suffix.lower()
+        if ext not in SUPPORTED:
             print(yellow(f"  unsupported type: {f}  (supported: pdf, jpg, png, webp, bmp, tiff)"))
             continue
         files.append(p)
+        if ext == ".pdf":
+            has_pdf = True
+        else:
+            has_img = True
 
     if not files:
         print(red("  no valid files to compress."))
+        sys.exit(1)
+
+    # ── Check deps dynamically based on input file types ──────────────────────
+    missing = check_deps()
+    missing_req = []
+    if has_pdf and "ghostscript" in missing:
+        missing_req.append("ghostscript")
+    if has_img and "imagemagick" in missing:
+        missing_req.append("imagemagick")
+
+    if missing_req:
+        print(red("  missing dependencies for requested file type(s):"))
+        for m in missing_req:
+            print(red(f"    · {m}"))
+        print()
+        print("  install them:")
+        print(dim("    mac:    brew install " + " ".join(missing_req)))
+        print(dim("    linux:  sudo apt install " + " ".join(missing_req)))
+        print()
         sys.exit(1)
 
     # ── Run compression ───────────────────────────────────────────────────────

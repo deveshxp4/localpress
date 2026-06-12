@@ -15,10 +15,25 @@ def human_size(b):
     return f"{b/1024**2:.2f} MB"
 
 
+def _get_magick_cmd():
+    if shutil.which("magick"):
+        return ["magick"]
+    if shutil.which("convert"):
+        return ["convert"]
+    return None
+
+
+def _get_tmp_path(dst_path: str, tag: str) -> str:
+    p = Path(dst_path)
+    return str(p.parent / f"{p.stem}.dvcom_{tag}{p.suffix}")
+
+
 def check_deps():
     missing = []
-    if not shutil.which("gs"):       missing.append("ghostscript")
-    if not shutil.which("convert"):  missing.append("imagemagick")
+    if not shutil.which("gs"):
+        missing.append("ghostscript")
+    if not _get_magick_cmd():
+        missing.append("imagemagick")
     return missing
 
 
@@ -98,16 +113,22 @@ def compress_pdf(src, dst, target_bytes, log=None):
     temps = []
 
     def tmp(tag):
-        p = str(dst) + f".dvcom_{tag}.pdf"
+        p = _get_tmp_path(dst, tag)
         temps.append(p)
         return p
 
-    def cleanup(*keep):
+    def cleanup():
         for t in temps:
-            if t not in keep and os.path.exists(t):
-                os.remove(t)
+            if os.path.exists(t):
+                try: os.remove(t)
+                except Exception: pass
 
-    best_path, best_size = None, orig
+    # Track best paths
+    best_satisfied_path = None
+    best_satisfied_size = None
+
+    best_unsatisfied_path = None
+    best_unsatisfied_size = orig
 
     # Strategy 1: font/stream optimisation
     t1 = tmp("text")
@@ -115,28 +136,32 @@ def compress_pdf(src, dst, target_bytes, log=None):
     if ok and os.path.exists(t1):
         s1 = os.path.getsize(t1)
         _log(f"  [font/stream] {human_size(orig)} → {human_size(s1)}")
-        if s1 < best_size:
-            best_size, best_path = s1, t1
         if s1 <= target_bytes:
+            # Satisfied! We can stop early because strategy 1 has best quality.
             shutil.move(t1, dst)
-            cleanup(str(dst))
+            cleanup()
             return True, s1, ""
+        else:
+            if s1 < best_unsatisfied_size:
+                best_unsatisfied_size, best_unsatisfied_path = s1, t1
 
     # Strategy 2: qpdf repack
     t2 = tmp("qpdf")
-    ok2, _ = _qpdf_compress(best_path or src, t2)
+    ok2, _ = _qpdf_compress(best_unsatisfied_path or src, t2)
     if ok2 and os.path.exists(t2):
         s2 = os.path.getsize(t2)
         _log(f"  [qpdf repack] → {human_size(s2)}")
-        if s2 < best_size:
-            best_size, best_path = s2, t2
         if s2 <= target_bytes:
+            # Satisfied! We can stop early because qpdf does not degrade images.
             shutil.move(t2, dst)
-            cleanup(str(dst))
+            cleanup()
             return True, s2, ""
+        else:
+            if s2 < best_unsatisfied_size:
+                best_unsatisfied_size, best_unsatisfied_path = s2, t2
 
     # Strategy 3: DPI binary search
-    dpi_src = best_path or src
+    dpi_src = best_unsatisfied_path or src
     lo, hi = 20, 300
     _log(f"  [DPI search] target={human_size(target_bytes)} ...")
     for _ in range(8):
@@ -144,35 +169,41 @@ def compress_pdf(src, dst, target_bytes, log=None):
         td = tmp(f"dpi{mid}")
         ok3, _ = _gs_compress_dpi(dpi_src, td, mid)
         if not ok3:
-            if os.path.exists(td): os.remove(td)
-            hi = mid - 10
+            if os.path.exists(td):
+                try: os.remove(td)
+                except Exception: pass
+            hi = mid - 1
             continue
         sd = os.path.getsize(td)
         _log(f"  [DPI={mid}] → {human_size(sd)}")
         if sd <= target_bytes:
-            if sd > best_size or best_path is None:
-                best_size, best_path = sd, td
-            else:
-                os.remove(td)
+            # Satisfied resolution! We want to MAXIMIZE quality/size.
+            if best_satisfied_size is None or sd > best_satisfied_size:
+                best_satisfied_path, best_satisfied_size = td, sd
             lo = mid + 1
         else:
-            if sd < best_size:
-                best_size, best_path = sd, td
-            else:
-                os.remove(td)
+            # Unsatisfied resolution. We want to MINIMIZE file size (closest to target).
+            if sd < best_unsatisfied_size:
+                best_unsatisfied_path, best_unsatisfied_size = td, sd
             hi = mid - 1
         if lo > hi:
             break
 
-    if best_path and os.path.exists(best_path):
-        shutil.move(best_path, dst)
-        cleanup(str(dst))
-        final = os.path.getsize(dst)
-        warn = "" if final <= target_bytes else "best effort -- target unreachable (text-only or already compressed)"
-        return True, final, warn
+    # Return satisfied if found
+    if best_satisfied_path and os.path.exists(best_satisfied_path):
+        shutil.move(best_satisfied_path, dst)
+        cleanup()
+        return True, best_satisfied_size, ""
+
+    # Otherwise return best unsatisfied
+    if best_unsatisfied_path and os.path.exists(best_unsatisfied_path) and best_unsatisfied_size < orig:
+        shutil.move(best_unsatisfied_path, dst)
+        cleanup()
+        warn = "best effort -- target unreachable (text-only or already compressed)"
+        return True, best_unsatisfied_size, warn
 
     cleanup()
-    return False, 0, "all strategies failed"
+    return False, 0, "all strategies failed to reduce file size"
 
 
 # ── Image compression ─────────────────────────────────────────────────────────
@@ -185,53 +216,85 @@ def compress_image(src, dst, target_bytes, log=None):
     def _log(msg, level="info"):
         if log: log(msg, level)
 
+    magick_cmd = _get_magick_cmd()
+    if not magick_cmd:
+        return False, 0, "imagemagick not installed"
+
+    orig = os.path.getsize(src)
     lo, hi = 5, 95
-    best_path, best_size = None, None
+    best_satisfied_path = None
+    best_satisfied_size = None
+    best_unsatisfied_path = None
+    best_unsatisfied_size = orig
     temps = []
+
+    def tmp(tag):
+        p = _get_tmp_path(dst, tag)
+        temps.append(p)
+        return p
+
+    def cleanup():
+        for t in temps:
+            if os.path.exists(t):
+                try: os.remove(t)
+                except Exception: pass
 
     for _ in range(8):
         mid = (lo + hi) // 2
-        t = str(dst) + f".dvcom_{mid}"
-        temps.append(t)
-        r = subprocess.run(
-            ["convert", src, "-quality", str(mid), t],
-            capture_output=True, text=True,
-        )
+        t = tmp(str(mid))
+        
+        # Run ImageMagick
+        cmd = magick_cmd + [src, "-quality", str(mid), t]
+        r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
-            if os.path.exists(t): os.remove(t)
+            if os.path.exists(t):
+                try: os.remove(t)
+                except Exception: pass
             hi = mid - 1
             continue
+
         size = os.path.getsize(t)
         _log(f"  [quality={mid}] → {human_size(size)}")
+
         if size <= target_bytes:
-            if best_size is None or size > best_size:
-                if best_path and os.path.exists(best_path): os.remove(best_path)
-                best_path, best_size = t, size
-            else:
-                os.remove(t)
+            # Satisfied! We want to MAXIMIZE quality/size.
+            if best_satisfied_size is None or size > best_satisfied_size:
+                best_satisfied_path, best_satisfied_size = t, size
             lo = mid + 1
         else:
-            os.remove(t)
+            # Unsatisfied. We want to MINIMIZE size.
+            if size < best_unsatisfied_size:
+                best_unsatisfied_path, best_unsatisfied_size = t, size
             hi = mid - 1
         if lo > hi:
             break
 
-    def cleanup():
-        for t in temps:
-            if t != best_path and os.path.exists(t):
-                os.remove(t)
-
-    if best_path and os.path.exists(best_path):
-        shutil.move(best_path, dst)
+    # Return satisfied if found
+    if best_satisfied_path and os.path.exists(best_satisfied_path):
+        shutil.move(best_satisfied_path, dst)
         cleanup()
-        return True, os.path.getsize(dst), ""
+        return True, best_satisfied_size, ""
 
-    # fallback: quality 5
-    r = subprocess.run(
-        ["convert", src, "-quality", "5", str(dst)],
-        capture_output=True, text=True,
-    )
+    # Otherwise try quality 5 fallback
+    t5 = tmp("fallback_5")
+    cmd = magick_cmd + [src, "-quality", "5", t5]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode == 0 and os.path.exists(t5):
+        s5 = os.path.getsize(t5)
+        if s5 <= target_bytes:
+            shutil.move(t5, dst)
+            cleanup()
+            return True, s5, ""
+        elif s5 < best_unsatisfied_size:
+            shutil.move(t5, dst)
+            cleanup()
+            return True, s5, "best effort -- target unreachable"
+
+    # Fallback to best unsatisfied if we have one
+    if best_unsatisfied_path and os.path.exists(best_unsatisfied_path) and best_unsatisfied_size < orig:
+        shutil.move(best_unsatisfied_path, dst)
+        cleanup()
+        return True, best_unsatisfied_size, "best effort -- target unreachable"
+
     cleanup()
-    if r.returncode == 0:
-        return True, os.path.getsize(dst), "best effort -- target unreachable"
-    return False, 0, r.stderr
+    return False, 0, "failed to compress image"

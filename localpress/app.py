@@ -4,20 +4,62 @@ LocalPress - Local PDF & Image Compressor
 Flask web UI. Runs on localhost:5000. Nothing leaves your machine.
 """
 
-import os, threading, uuid, time
+import os, threading, uuid, time, tempfile
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template, send_file
 from dvcom.core import compress_pdf, compress_image, check_deps, parse_target, human_size
 
 app = Flask(__name__)
 
-UPLOAD_DIR = Path("/tmp/localpress/uploads")
-OUTPUT_DIR = Path("/tmp/localpress/outputs")
+TEMP_BASE = Path(tempfile.gettempdir()) / "localpress"
+UPLOAD_DIR = TEMP_BASE / "uploads"
+OUTPUT_DIR = TEMP_BASE / "outputs"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# job_id -> {status, logs, files}
+# job_id -> {status, progress, logs, outputs, created_at}
 JOBS = {}
+
+
+# ── Cleanup thread ────────────────────────────────────────────────────────────
+
+def cleanup_old_files():
+    """Background daemon thread to periodically clean up expired jobs and temporary files."""
+    while True:
+        try:
+            now = time.time()
+            # 1. Clean up old jobs in JOBS dict
+            expired_jobs = []
+            for job_id, job in list(JOBS.items()):
+                if job.get("status") in ("done", "failed"):
+                    if job.get("logs"):
+                        last_log_ts = job["logs"][-1]["ts"]
+                        if now - last_log_ts > 3600:  # older than 1 hour
+                            expired_jobs.append(job_id)
+                    else:
+                        expired_jobs.append(job_id)
+                elif now - job.get("created_at", now) > 7200:  # stale queued/running jobs
+                    expired_jobs.append(job_id)
+
+            for job_id in expired_jobs:
+                JOBS.pop(job_id, None)
+
+            # 2. Clean up files in upload and output directories older than 1 hour
+            for directory in [UPLOAD_DIR, OUTPUT_DIR]:
+                if directory.exists():
+                    for f in directory.iterdir():
+                        if f.is_file() and now - f.stat().st_mtime > 3600:
+                            try:
+                                f.unlink()
+                            except Exception:
+                                pass
+        except Exception as e:
+            print(f"Error in cleanup thread: {e}")
+        time.sleep(600)  # Run every 10 minutes
+
+
+# Start the cleanup daemon thread
+threading.Thread(target=cleanup_old_files, daemon=True).start()
 
 
 # ── Job runner ────────────────────────────────────────────────────────────────
@@ -56,12 +98,17 @@ def run_job(job_id, files_info, output_dir):
             success += 1
             log(f"  ✓ {human_size(orig_size)} → {human_size(new_size)} (saved {pct:.1f}%)", "ok")
             if err: log(f"  ⚠ {err}", "warning")
+            
+            # Check if this is the default output directory
+            is_default_dir = Path(dst).resolve().parent == Path(OUTPUT_DIR).resolve()
+            
             job["outputs"].append({
                 "name": dst.name,
                 "path": str(dst),
                 "orig": human_size(orig_size),
                 "final": human_size(new_size),
-                "saved": f"{pct:.1f}%"
+                "saved": f"{pct:.1f}%",
+                "is_default_dir": is_default_dir
             })
         else:
             log(f"  ✗ failed: {err[:120]}", "err")
@@ -123,7 +170,8 @@ def compress():
         "status":   "queued",
         "progress": 0,
         "logs":     [],
-        "outputs":  []
+        "outputs":  [],
+        "created_at": time.time()
     }
     threading.Thread(target=run_job, args=(job_id, files_info, out_dir), daemon=True).start()
     return jsonify({"job_id": job_id})
