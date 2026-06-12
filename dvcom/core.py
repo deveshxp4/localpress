@@ -243,8 +243,8 @@ def compress_image(src, dst, target_bytes, log=None):
         mid = (lo + hi) // 2
         t = tmp(str(mid))
         
-        # Run ImageMagick
-        cmd = magick_cmd + [src, "-quality", str(mid), t]
+        # Run ImageMagick with progressive encoding and metadata stripping
+        cmd = magick_cmd + [src, "-strip", "-interlace", "Plane", "-quality", str(mid), t]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             if os.path.exists(t):
@@ -277,7 +277,7 @@ def compress_image(src, dst, target_bytes, log=None):
 
     # Otherwise try quality 5 fallback
     t5 = tmp("fallback_5")
-    cmd = magick_cmd + [src, "-quality", "5", t5]
+    cmd = magick_cmd + [src, "-strip", "-interlace", "Plane", "-quality", "5", t5]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode == 0 and os.path.exists(t5):
         s5 = os.path.getsize(t5)

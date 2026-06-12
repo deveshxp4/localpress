@@ -1197,8 +1197,15 @@ async function runLocalCompression() {
       // Create download URL
       const url = URL.createObjectURL(compressedBlob);
       const nameParts = f.name.split('.');
-      const suffix = nameParts.pop();
-      const compressedName = `${nameParts.join('.')}_compressed.${suffix}`;
+      nameParts.pop(); // discard original extension
+      
+      let newExt = 'jpg';
+      if (compressedBlob.type === 'image/webp') {
+        newExt = 'webp';
+      } else if (compressedBlob.type === 'application/pdf') {
+        newExt = 'pdf';
+      }
+      const compressedName = `${nameParts.join('.')}_compressed.${newExt}`;
       
       outputs.push({
         name: compressedName,
@@ -1261,7 +1268,13 @@ async function localCompressImage(file, targetBytes) {
         
         const checkQuality = (quality) => {
           return new Promise((resBlob) => {
-            canvas.toBlob(resBlob, 'image/jpeg', quality);
+            canvas.toBlob((blob) => {
+              if (blob && blob.type === 'image/webp') {
+                resBlob(blob);
+              } else {
+                canvas.toBlob(resBlob, 'image/jpeg', quality);
+              }
+            }, 'image/webp', quality);
           });
         };
         
