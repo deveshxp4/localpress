@@ -795,11 +795,117 @@
     background: rgba(0, 255, 136, 0.02);
   }
 
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
-</style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+
+    /* ── Under the Hood ── */
+    .details-container {
+      margin-top: 40px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    }
+    
+    .details-header {
+      padding: 18px 24px;
+      background: rgba(255, 255, 255, 0.01);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+    
+    .details-header h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .details-header .arrow {
+      font-size: 10px;
+      color: var(--text-muted);
+      transition: transform 0.3s ease;
+    }
+    
+    .details-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0, 1, 0, 1);
+      padding: 0 24px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    
+    .details-container.open .details-content {
+      max-height: 800px;
+      transition: all 0.3s cubic-bezier(1, 0, 1, 0);
+      padding-bottom: 24px;
+      padding-top: 8px;
+    }
+    
+    .details-container.open .arrow {
+      transform: rotate(180deg);
+      color: var(--accent);
+    }
+    
+    .tech-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    @media (max-width: 600px) {
+      .tech-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .tech-card {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+    }
+    
+    .tech-card h4 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .tech-card p {
+      font-size: 12.5px;
+      color: var(--text-secondary);
+    }
+    
+    .tech-card code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+    }
+  </style>
 
 <!-- PDF libraries for Client-Side (Loaded on demand or dynamically from CDN) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
@@ -926,9 +1032,38 @@
     <div id="add-more">
       <button onclick="resetForMore()">+ Compress more files</button>
     </div>
-  </div>
+    </div>
 
-</main>
+    <!-- Under the Hood (Technical Details) -->
+    <div class="details-container" id="details-section">
+      <div class="details-header" onclick="toggleDetails()">
+        <h3>⚙️ Under the Hood (How it Works)</h3>
+        <span class="arrow" id="details-arrow">▼</span>
+      </div>
+      <div class="details-content">
+        <p>
+          LocalPress runs <strong>entirely inside your browser's local sandbox</strong>. No files, document data, or metadata are ever uploaded to a remote server. You can verify this by checking your browser's Network tab (F12) or inspecting the open-source code on GitHub.
+        </p>
+        
+        <div class="tech-grid">
+          <div class="tech-card">
+            <h4>🖼️ Image Compression</h4>
+            <p>
+              Dropped images are loaded into an offscreen HTML5 <code>&lt;canvas&gt;</code>. To protect memory on low-end devices, images larger than 2048px are resampled down. The engine then executes a <strong>quality binary search</strong> using <code>canvas.toBlob(..., 'image/webp')</code> to maximize compression ratio while preserving excellent visual detail, falling back to JPEG if WebP is unsupported.
+            </p>
+          </div>
+          
+          <div class="tech-card">
+            <h4>📄 PDF Compression</h4>
+            <p>
+              Using Mozilla's <code>pdf.js</code> engine, the PDF document is rendered page-by-page onto high-DPI canvases at a crisp 130 DPI (perfect for screen reading). The rasterized canvases are converted to compressed JPEGs and compiled into a new PDF stream using <code>pdf-lib</code>, shrinking heavy scanned documents directly on your device.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
@@ -1536,6 +1671,11 @@ function parseTarget(text, origBytes) {
 
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function toggleDetails() {
+  const container = document.getElementById('details-section');
+  container.classList.toggle('open');
 }
 </script>
 </body>
