@@ -8,9 +8,9 @@ It also includes a local Python CLI tool (`dvcom`) and developer Flask backend f
 
 ---
 
-## 🚀 Deployed Web App (100% Local / Static)
+## 🚀 Live Web App (100% Local / Static)
 
-You can host this project as a **static-only website** (e.g., on Cloudflare Pages, Vercel, or GitHub Pages) for zero cost and infinite scalability.
+The application is deployed as a **static website** on **Cloudflare Pages** at: **[localpress.pages.dev](https://localpress.pages.dev)** (or your custom domain).
 
 *   **Zero Installs**: Visitors do not need to install Python, Ghostscript, or ImageMagick. Everything runs in the browser.
 *   **Offline First**: Loads core engines locally. Works even when disconnected from the internet.
